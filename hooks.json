@@ -1,0 +1,25 @@
+{
+  "repo-quarantine-scan": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 ./hooks/session_repo_scan.py",
+        "timeout": 10
+      }
+    ]
+  },
+  "pre-tool-safety-gate": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command|.*subagent.*|send_message|search_web|mcp_.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 ./hooks/pre_tool_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

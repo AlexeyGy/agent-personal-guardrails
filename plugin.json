@@ -1,0 +1,17 @@
+{
+  "name": "personal-guardrails",
+  "displayName": "Personal Guardrails",
+  "version": "1.0.0",
+  "description": "Anti-exfiltration guardrails: synthetic persona defaults, fresh-context safety audits and approval gates before using real personal data, and automated quarantine checks for downloaded code.",
+  "logo": "assets/logo.svg",
+  "homepage": "https://github.com/AlexeyGy/agent-personal-guardrails",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlexeyGy/agent-personal-guardrails.git"
+  },
+  "suggestedPrompts": [
+    "Audit this downloaded repository for prompt-injection traps and risky install hooks",
+    "Run a fresh-context safety check on a website before entering any real personal data",
+    "Register or test a web flow using my default synthetic persona"
+  ]
+}
