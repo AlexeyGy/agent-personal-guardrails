@@ -1,8 +1,20 @@
-# Personal Guardrails Plugin
+# Personal Guardrails Plugin for Antigravity (`agy`)
 
-Anti-exfiltration guardrails for Antigravity combining always-on behavioral rules, a fresh-context read-only security auditor subagent, and deterministic lifecycle hooks.
+Local coding and browser agents ship with Simon Willison's [**"lethal trifecta"**](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) enabled out of the box: access to **private data**, exposure to **untrusted content** (repos, issues, web pages), and **external communication** tools. Prompt instructions in `AGENTS.md` sit in the same context plane as untrusted text and cannot serve as a security boundary on their own.
+
+Antigravity's OS terminal sandbox, browser domain allowlist, and approval prompts provide the **hard walls**. This plugin adds **safer defaults, isolated triage, and deterministic Python tripwires** on top so you can keep local agents useful without turning cached `"Always Allow"` grants into silent exfiltration paths.
+
+## Defense Layers vs. The Lethal Trifecta
+
+| Trifecta Leg | Hard Harness Barrier (Built-In) | What This Plugin Adds |
+| :--- | :--- | :--- |
+| **1. Private Data** | OS filesystem sandbox + non-workspace file prompts | **Synthetic-first persona** (`rules/AGENTS.md`) keeps real PII out of routine browser/demo flows. **`PreToolUse` hook** (`hooks/pre_tool_guard.py`) forces `force_ask` when `read_file`, `write_file`/`edit_file`, or `run_command` targets Keychain, `op`/`bw`/`gh`/`gcloud`, `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.netrc`/`.npmrc`/`.pypirc`, `~/.kube/config`, `~/.gemini/**/auth.json`, or `.env` files. |
+| **2. Untrusted Content** | Read-only subagent isolation + sandboxed installs | **`SessionStart` & post-`git clone` scanner** (`hooks/session_repo_scan.py`) flags repo-bundled `.agents/` hooks, `.mcp.json`, risky `package.json` lifecycle scripts, invisible/Bidi/Variation-Selector Unicode, and prompt-injection markers (with sanitized filenames). **`safety-auditor`** (`agents/safety-auditor.md`) triages unfamiliar repos and target origins in a fresh, read-only, network-less context. |
+| **3. External Egress** | No-network terminal sandbox + browser domain allowlist + approval clicks | **Deterministic `PreToolUse` egress tripwire** (`hooks/pre_tool_guard.py`) inspects outbound/agent/MCP tool arguments (raw and URL-decoded, stripping invisible chars) and triggers `force_ask` on valid ISO 13616 Mod-97 IBANs, Luhn-valid payment cards (major IIN prefixes including Mastercard 2-series), user-configured SHA-256 identifiers, `curl \| sh` pipes, and `npm`/`pnpm`/`yarn`/`bun` installs missing `--ignore-scripts`. |
 
 ## Installation
+
+*(Hook commands require `python3` in `PATH` on macOS/Linux.)*
 
 ### Antigravity CLI
 
@@ -22,32 +34,16 @@ To update a cloned install later:
 git -C ~/.gemini/config/plugins/personal-guardrails pull
 ```
 
-## What It Enforces
-
-1. **Synthetic-First Identity (`rules/AGENTS.md`)**
-   Uses a default synthetic persona (`Johanna Ricke` / `johanna.ricke.demo@example.com`) for demos, tests, signups, and `browser` delegations unless real identity is strictly required.
-2. **Pre-PII Gate (`agents/safety-auditor.md` + `rules/AGENTS.md`)**
-   Before entering or transmitting real user data (name + contact, address, tax/ID numbers, IBAN/bank details, credentials), Antigravity must:
-   - Run the air-gapped `safety-auditor` subagent (`tools: [read_file]`) on the destination origin/form without passing any actual PII.
-   - Brief you on the exact origin, requested fields, and verdict.
-   - Wait for your explicit per-target approval.
-3. **Downloaded Code Quarantine (`hooks/session_repo_scan.py` + `rules/AGENTS.md`)**
-   Scans open workspace roots on `SessionStart` for repo-bundled `.agents/` hooks, `.mcp.json`, suspicious `package.json` install hooks, hidden/Trojan-Source Unicode, and prompt-injection markers.
-4. **Forced Approval Backstop (`hooks/pre_tool_guard.py`)**
-   Intercepts `PreToolUse` (`run_command`, subagents, `send_message`, `search_web`, `mcp_*`) and returns `"decision": "force_ask"` (bypassing cached "Always Allow" grants) whenever:
-   - Commands access Keychain (`security find-generic-password`), `op`, `bw`, `~/.ssh`, `~/.aws/credentials`, or `~/.gnupg`.
-   - Commands pipe `curl`/`wget` directly to a shell/interpreter.
-   - `npm`/`pnpm`/`yarn` installs omit `--ignore-scripts`, or `pip install` targets remote URLs / VCS / editable paths / `--no-build-isolation`.
-   - Tool arguments contain a valid ISO 13616 Mod-97 IBAN, a valid Luhn payment card number, or a user-configured protected identifier.
-
 ## Optional: Hash-Based Matching for Your Real Name, Email, or Phone
 
-To force an interactive approval prompt if your own name, email, phone number, or tax ID ever appears in outbound tool arguments—without storing plaintext PII on disk—create `~/.gemini/config/guardrails-identifiers.json` containing lowercase SHA-256 hashes:
+To trigger `force_ask` if your own name, email, phone number, or tax ID appears in outbound tool arguments without storing plaintext strings in dotfiles, create `~/.gemini/config/guardrails-identifiers.json` containing lowercase SHA-256 hashes:
 
 ```sh
 python3 - <<'EOF'
 import hashlib, json, os
-tokens = ["your full name", "you@example.com", "01701234567"]  # lowercase; digits-only for phones
+# Use full names, emails, or full phone numbers — avoid short single words
+# like your first name or OS username (which appear in home-directory paths).
+tokens = ["your full name", "you@example.com", "01701234567", "+491701234567"]
 hashes = [hashlib.sha256(t.strip().lower().encode()).hexdigest() for t in tokens]
 path = os.path.expanduser("~/.gemini/config/guardrails-identifiers.json")
 with open(path, "w") as f:
@@ -56,4 +52,12 @@ os.chmod(path, 0o600)
 EOF
 ```
 
-(`substrings` and `regexes` keys are also supported in that file if you prefer explicit patterns.)
+(`substrings` and `regexes` keys are also supported in that file if you prefer explicit patterns. Standard ISO/Stripe test IBANs and test cards are allowlisted to avoid dev/test alert fatigue.)
+
+## Honest Limitations & Non-Goals
+
+- **Tripwire, not an unbreakable DLP wall:** Argument scanning catches plaintext and URL-encoded leaks, not arbitrary custom obfuscation (e.g., bespoke encoding) or sensitive data passed by opaque file reference. Keep Antigravity's OS sandbox and browser allowlist enabled.
+- **Unsalted SHA-256 hashes:** Hashing avoids leaving plaintext PII in config files or accidental backups, but unsalted hashes of low-entropy domains (like phone numbers) can still be brute-forced offline if an attacker already controls your disk.
+- **Network-less, not hardware air-gapped:** `safety-auditor` has no network tools (`tools: [read_file]`), but its Markdown verdict still returns to the main coordinator. Never pass actual secrets to the auditor; pass only URLs and field categories.
+- **Startup and clone scans warn; they do not block workspace loading:** Opening an untrusted repository directly as a top-level workspace still allows Antigravity to discover its `.agents/` directory. Clone unfamiliar code into a quarantine subdirectory first.
+- **Platform:** Hook shell wrappers in `hooks.json` target macOS and Linux (`sh -c`).

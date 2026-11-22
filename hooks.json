@@ -3,19 +3,38 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 ./hooks/session_repo_scan.py",
+        "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 -I -B ./hooks/session_repo_scan.py",
         "timeout": 10
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 -I -B ./hooks/session_repo_scan.py --post-tool",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 -I -B ./hooks/session_repo_scan.py --flush-alerts",
+        "timeout": 5
       }
     ]
   },
   "pre-tool-safety-gate": {
     "PreToolUse": [
       {
-        "matcher": "run_command|.*subagent.*|send_message|search_web|mcp_.*",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 ./hooks/pre_tool_guard.py",
+            "command": "PATH=\"$PATH:/usr/bin:/usr/local/bin:/opt/homebrew/bin\" python3 -I -B ./hooks/pre_tool_guard.py",
             "timeout": 10
           }
         ]
